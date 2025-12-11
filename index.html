@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>NumeriX Lab – Interpolación, Gradiente Conjugado y SOR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Orbitron:wght@500;700&display=swap"
+    rel="stylesheet">
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <header class="top-nav">
+    <div class="brand">
+      <span class="brand-mark">λ</span>
+      <div class="brand-text-group">
+        <span class="brand-text">NumeriX Lab</span>
+        <span class="brand-tagline">Aplicación Web de Análisis Numérico</span>
+      </div>
+    </div>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-target="interpolation">Interpolación</button>
+      <button class="nav-tab" data-target="cg">Gradiente Conjugado</button>
+      <button class="nav-tab" data-target="sor">SOR (Sobre-relajación)</button>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <!-- SECCIÓN 1: INTERPOLACIÓN -->
+    <section id="interpolation" class="method-section active">
+      <div class="section-intro">
+        <h2>Interpolación polinómica</h2>
+        <p>
+          Caso práctico: <strong>pronóstico de demanda de energía</strong> en una ciudad a partir de 
+          mediciones horarias. A partir de algunos puntos (hora, consumo) se construye un 
+          polinomio que permite estimar la demanda en horas intermedias.
+        </p>
+        <div class="pill-row">
+          <span class="pill">Problema: predicción de consumo eléctrico</span>
+          <span class="pill">Método: Interpolación de Newton</span>
+          <span class="pill">Ecuaciones: n · incógnitas: n</span>
+        </div>
+      </div>
+
+      <div class="method-grid">
+        <div class="method-panel">
+          <h3>Datos de entrada</h3>
+          <p class="panel-caption">
+            Ingresa las mediciones de la demanda. Cada punto define una ecuación
+            para el polinomio <code>p(x)</code>.
+          </p>
+
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Hora x (h)</th>
+                <th>Demanda y (MW)</th>
+              </tr>
+            </thead>
+            <tbody id="interp-table-body">
+              <!-- Filas generadas por JS -->
+            </tbody>
+          </table>
+
+          <div class="button-row">
+            <button id="interp-add-row" class="btn secondary">Añadir punto</button>
+            <button id="interp-remove-row" class="btn ghost">Quitar último</button>
+            <button id="interp-example" class="btn ghost">Ejemplo de ciudad</button>
+          </div>
+
+          <div class="input-row">
+            <label>
+              Evaluar demanda en x =
+              <input id="interp-x-eval" type="number" step="any" value="13" />
+              h
+            </label>
+          </div>
+
+          <button id="interp-calc" class="btn primary full">
+            Calcular interpolación
+          </button>
+
+          <div id="interp-error" class="error-message"></div>
+
+          <div class="equation-block">
+            <h4>Ecuación del modelo</h4>
+            <p>
+              Construimos un polinomio de grado <code>n-1</code> que pasa por todos los puntos:
+            </p>
+            <pre class="equation">
+p(x) = a₀ + a₁(x - x₀) + a₂(x - x₀)(x - x₁) + ...</pre>
+            <p class="equation-meta">
+              Número de ecuaciones = número de puntos = número de coeficientes
+              <code>aᵢ</code>.
+            </p>
+          </div>
+        </div>
+
+        <div class="method-panel">
+          <h3>Resultados y gráfica</h3>
+          <p class="panel-caption">
+            Se muestra el polinomio interpolante, la evaluación en la hora seleccionada
+            y la curva estimada frente a los datos reales.
+          </p>
+
+          <div class="equation-display">
+            <h4>Polinomio interpolante</h4>
+            <code id="interp-equation" class="equation-text">
+              Define puntos y pulsa "Calcular interpolación".
+            </code>
+          </div>
+
+          <div class="interp-summary">
+            <p><strong>Detalles del sistema:</strong></p>
+            <ul>
+              <li><span id="interp-num-points">Puntos: 0</span></li>
+              <li><span id="interp-num-equations">Ecuaciones: 0</span></li>
+              <li><span id="interp-num-unknowns">Incógnitas (coeficientes): 0</span></li>
+            </ul>
+          </div>
+
+          <canvas id="interp-canvas" width="520" height="320"></canvas>
+
+          <div id="interp-info" class="result-box">
+            <!-- Resultado numérico -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECCIÓN 2: GRADIENTE CONJUGADO -->
+    <section id="cg" class="method-section">
+      <div class="section-intro">
+        <h2>Método del gradiente conjugado</h2>
+        <p>
+          Caso práctico: <strong>presión en nodos de una red de tuberías</strong> 
+          de agua. La física de la red se modela como un sistema lineal 
+          <code>A x = b</code>, donde <code>x</code> son las presiones desconocidas 
+          en los nodos.
+        </p>
+        <div class="pill-row">
+          <span class="pill">Problema: red de tuberías</span>
+          <span class="pill">Método: Gradiente Conjugado</span>
+          <span class="pill">Sistema simétrico definido positivo</span>
+        </div>
+      </div>
+
+      <div class="method-grid">
+        <div class="method-panel">
+          <h3>Definir el sistema A x = b</h3>
+          <p class="panel-caption">
+            Ajusta la dimensión y los coeficientes de la matriz <code>A</code> 
+            y del vector <code>b</code>. El método resuelve el sistema 
+            iterativamente.
+          </p>
+
+          <div class="input-row">
+            <label>
+              Tamaño del sistema (n × n):
+              <input id="cg-size" type="number" min="2" max="5" value="3" />
+            </label>
+          </div>
+
+          <div class="button-row">
+            <button id="cg-generate" class="btn secondary">Generar matriz vacía</button>
+            <button id="cg-example" class="btn ghost">Cargar ejemplo físico</button>
+          </div>
+
+          <div class="matrix-wrapper">
+            <div>
+              <h4>Matriz A</h4>
+              <div id="cg-matrix-container"></div>
+            </div>
+            <div>
+              <h4>Vector b</h4>
+              <div id="cg-b-container"></div>
+            </div>
+          </div>
+
+          <div class="input-row">
+            <label>
+              Tolerancia:
+              <input id="cg-tol" type="number" step="any" value="1e-6" />
+            </label>
+            <label>
+              Iteraciones máximas:
+              <input id="cg-max-iter" type="number" value="50" />
+            </label>
+          </div>
+
+          <button id="cg-solve" class="btn primary full">
+            Resolver con Gradiente Conjugado
+          </button>
+
+          <div id="cg-error" class="error-message"></div>
+
+          <div class="equation-block">
+            <h4>Ecuaciones del modelo</h4>
+            <pre class="equation small">
+x₀ = vector inicial (por defecto 0)
+r₀ = b - A x₀
+p₀ = r₀
+
+αₖ = (rₖᵀ rₖ) / (pₖᵀ A pₖ)
+xₖ₊₁ = xₖ + αₖ pₖ
+rₖ₊₁ = rₖ - αₖ A pₖ
+βₖ = (rₖ₊₁ᵀ rₖ₊₁) / (rₖᵀ rₖ)
+pₖ₊₁ = rₖ₊₁ + βₖ pₖ
+            </pre>
+            <p class="equation-meta">
+              Número de ecuaciones = número de incógnitas = tamaño de <code>x</code>.
+            </p>
+          </div>
+        </div>
+
+        <div class="method-panel">
+          <h3>Resultados</h3>
+          <p class="panel-caption">
+            Se muestra el vector de presiones <code>x</code>, el número de 
+            ecuaciones y la convergencia del residuo en cada iteración.
+          </p>
+
+          <div class="cg-summary">
+            <p><strong>Dimensión del sistema:</strong></p>
+            <ul>
+              <li><span id="cg-num-equations">Ecuaciones: 0</span></li>
+              <li><span id="cg-num-unknowns">Incógnitas: 0</span></li>
+            </ul>
+          </div>
+
+          <div class="equation-display">
+            <h4>Sistema explícito</h4>
+            <div id="cg-equations-list" class="equations-list">
+              <!-- Ecuaciones Ax = b en forma textual -->
+            </div>
+          </div>
+
+          <div id="cg-results" class="result-box">
+            <!-- Vector solución -->
+          </div>
+
+          <h4>Evolución del residuo</h4>
+          <table class="data-table compact">
+            <thead>
+              <tr>
+                <th>Iteración k</th>
+                <th>‖rᵏ‖</th>
+                <th>αᵏ</th>
+              </tr>
+            </thead>
+            <tbody id="cg-iterations-body">
+              <!-- Iteraciones -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECCIÓN 3: SOR -->
+    <section id="sor" class="method-section">
+      <div class="section-intro">
+        <h2>Método de Sobre-relajación Sucesiva (SOR)</h2>
+        <p>
+          Caso práctico: <strong>distribución de temperatura en una placa metálica</strong> 
+          cuadrada. Los bordes tienen temperatura fija y el interior se calcula 
+          resolviendo la ecuación de Laplace de forma iterativa.
+        </p>
+        <div class="pill-row">
+          <span class="pill">Problema: conducción de calor 2D</span>
+          <span class="pill">Método: SOR (Gauss-Seidel acelerado)</span>
+          <span class="pill">Sistema grande: ecuaciones por nodo interior</span>
+        </div>
+      </div>
+
+      <div class="method-grid">
+        <div class="method-panel">
+          <h3>Configurar la placa</h3>
+          <p class="panel-caption">
+            La placa se discretiza en una malla. Cada nodo interior es una ecuación.
+            Bordes: izquierda y derecha a 100°C, arriba y abajo a 0°C.
+          </p>
+
+          <div class="input-row">
+            <label>
+              Tamaño de la malla (N × N):
+              <input id="sor-n" type="number" min="4" max="20" value="8" />
+            </label>
+          </div>
+
+          <div class="input-row">
+            <label>
+              Parámetro ω (1 &lt; ω &lt; 2 recomendado):
+              <input id="sor-omega" type="number" step="0.05" value="1.6" />
+            </label>
+          </div>
+
+          <div class="input-row">
+            <label>
+              Tolerancia:
+              <input id="sor-tol" type="number" step="any" value="1e-3" />
+            </label>
+            <label>
+              Iteraciones máximas:
+              <input id="sor-max-iter" type="number" value="500" />
+            </label>
+          </div>
+
+          <div class="button-row">
+            <button id="sor-init" class="btn secondary">Inicializar placa</button>
+            <button id="sor-start" class="btn primary">Iniciar SOR</button>
+            <button id="sor-stop" class="btn ghost">Detener</button>
+          </div>
+
+          <div class="sor-summary">
+            <p><strong>Dimensión del sistema interno:</strong></p>
+            <ul>
+              <li><span id="sor-num-equations">Ecuaciones (nodos interiores): 0</span></li>
+              <li><span id="sor-num-unknowns">Incógnitas: 0</span></li>
+            </ul>
+          </div>
+
+          <div class="equation-block">
+            <h4>Ecuación discreta (SOR)</h4>
+            <pre class="equation small">
+Tᵢⱼ⁽ᵏ⁺¹⁾ = (1 - ω) Tᵢⱼ⁽ᵏ⁾
+            + (ω/4) (Tᵢ₊₁ⱼ⁽ᵏ⁾ + Tᵢ₋₁ⱼ⁽ᵏ⁾ + Tᵢⱼ₊₁⁽ᵏ⁾ + Tᵢⱼ₋₁⁽ᵏ⁾)
+            </pre>
+            <p class="equation-meta">
+              Cada nodo interior define una ecuación de equilibrio de calor.
+            </p>
+          </div>
+        </div>
+
+        <div class="method-panel">
+          <h3>Visualización de la temperatura</h3>
+          <p class="panel-caption">
+            La malla muestra un mapa de calor iterativo: azul = frío, rojo = caliente.
+            La animación representa la convergencia numérica.
+          </p>
+
+          <div class="heatmap-legend">
+            <span>0°C</span>
+            <div class="legend-bar"></div>
+            <span>100°C</span>
+          </div>
+
+          <div id="sor-grid" class="sor-grid">
+            <!-- Celdas generadas por JS -->
+          </div>
+
+          <div id="sor-iteration-info" class="result-box">
+            Inicializa la placa y luego pulsa “Iniciar SOR”.
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>
+      NumeriX Lab · Desarrollado en HTML, CSS y JavaScript · Ejemplos prácticos de
+      interpolación, gradiente conjugado y SOR.
+    </p>
+    <p>
+      &copy; 2025 NumeriX Lab. Univ. Fidel Angel Rojas Condori.
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
